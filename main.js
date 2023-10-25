@@ -71,7 +71,7 @@ function dether(im,w,h)
   var pl=colors;
   var plyuv=pl.map(x=>rgb2yuv(...x));
   
-  var piStr='';//w+','+h+',';
+  //var piStr='';//w+','+h+',';
   var nim=new Array(im.length).fill(0);
   var bit=im.length/(w*h);
   
@@ -129,7 +129,7 @@ function dether(im,w,h)
       }
     });
     
-    piStr+=((mini%6)+Math.floor(mini/6)*16).toString(16).padStart(2,'0');
+    //piStr+=((mini%6)+Math.floor(mini/6)*16).toString(16).padStart(2,'0');
     
     var mc=pl[mini];
     
@@ -158,6 +158,6 @@ function dether(im,w,h)
     }
   }
   
-  resultB.value=piStr;
+  //resultB.value=piStr;
   return nim;
 }
