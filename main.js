@@ -206,6 +206,21 @@ window.onmouseup=e=>
   mouseStatus=null;
 };
 window.onselectstart=()=>false;
+window.ontouchstart=e=>
+{
+  let t=e.touches[0];
+  window.onmousedown(t);
+};
+window.ontouchmove=e=>
+{
+  let t=e.touches[0];
+  window.onmousemove(t);
+};
+window.ontouchend=e=>
+{
+  let t=e.touches[0];
+  window.onmouseup(t);
+};
 
 window.onload=()=>
 {
