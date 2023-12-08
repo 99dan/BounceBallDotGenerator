@@ -213,7 +213,7 @@ window.ontouchstart=e=>
 };
 window.ontouchmove=e=>
 {
-  let t=e.touches[0];
+  let t=e.changedTouches[0];
   window.onmousemove(t);
 };
 window.ontouchend=e=>
