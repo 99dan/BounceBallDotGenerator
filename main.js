@@ -36,7 +36,7 @@ let imageStatus=
 {
   view:
   {
-    zoom:canvas.width/20,
+    zoom:1,
     x:0,
     y:0
   },
@@ -135,36 +135,6 @@ const options=
           processImage().then(draw());
         }
       }
-    },
-    {
-      title:'디더링 에러 확산률: {0}',
-      type:'range',
-      attr:[
-        ['min',0],
-        ['max',200],
-        ['value',100]
-      ],
-      eventListener:{
-        input:function(){
-          this._title.innerText=this._opt.title.format(imageProcessingOptions.detherDiffusion=+this.value/100);
-          processImage().then(draw());
-        }
-      }
-    },
-    {
-      title:'디더링 에러 확산률: {0}',
-      type:'range',
-      attr:[
-        ['min',0],
-        ['max',200],
-        ['value',100]
-      ],
-      eventListener:{
-        input:function(){
-          this._title.innerText=this._opt.title.format(imageProcessingOptions.detherDiffusion=+this.value/100);
-          processImage().then(draw());
-        }
-      }
     }
   ]
 };
@@ -208,7 +178,9 @@ window.onmouseup=e=>
 window.onselectstart=()=>false;
 window.ontouchstart=e=>
 {
+  if(e.srcElement!=canvas)return;
   let t=e.touches[0];
+  t.srcElement=canvas;
   window.onmousedown(t);
 };
 window.ontouchmove=e=>
@@ -247,6 +219,8 @@ window.onload=()=>
   });
 
   const fileElement=document.getElementById('file--element');
+
+  imageStatus.view.zoom=canvas.width/60;
 
   fileElement.onchange=()=>
   {
