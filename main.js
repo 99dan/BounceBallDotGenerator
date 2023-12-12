@@ -300,11 +300,11 @@ async function imageResize(img,x,y,w,h,stretch=false,mw=0,mh=0)
   {
     if(mw==0)
     {
-      mw=Math.ceil(w*h/mh);
+      mw=Math.ceil(w*mh/h);
     }
     else if(mh==0)
     {
-      mh=Math.ceil(h*w/mw);
+      mh=Math.ceil(h*mw/w);
     }
     offcanvas.width=mw;
     offcanvas.height=mh;
