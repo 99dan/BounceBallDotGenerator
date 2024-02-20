@@ -5,7 +5,9 @@ const imageProcessingOptions=
   maxColor:255,
   gamma:1,
   gainColor:1,
-  detherDiffusion:1
+  detherDiffusion:1,
+  legacyColor:false,
+  getColorIndex:false
 };
 var minColor=0,
 maxColor=255,
@@ -67,12 +69,12 @@ const options=
       attr:[
         ['min',0],
         ['max',255],
-        ['value',50]
+        ['value',4]
       ],
       eventListener:{
         input:function(){
           this._title.innerText=this._opt.title.format(imageProcessingOptions.minColor=+this.value);
-          processImage().then(draw());
+          processImage().then(draw);
         }
       }
     },
@@ -82,12 +84,12 @@ const options=
       attr:[
         ['min',0],
         ['max',255],
-        ['value',255]
+        ['value',252]
       ],
       eventListener:{
         input:function(){
           this._title.innerText=this._opt.title.format(imageProcessingOptions.maxColor=+this.value);
-          processImage().then(draw());
+          processImage().then(draw);
         }
       }
     },
@@ -102,10 +104,10 @@ const options=
       eventListener:{
         input:function(){
           this._title.innerText=this._opt.title.format(imageProcessingOptions.gamma=(+this.value/10));
-          processImage().then(draw());
+          processImage().then(draw);
         }
       }
-    },
+    },/*
     {
       title:'색상 우선선택률: {0}',
       type:'range',
@@ -120,7 +122,7 @@ const options=
           processImage().then(draw());
         }
       }
-    },
+    },*/
     {
       title:'디더링 에러 확산률: {0}',
       type:'range',
@@ -132,12 +134,66 @@ const options=
       eventListener:{
         input:function(){
           this._title.innerText=this._opt.title.format(imageProcessingOptions.detherDiffusion=+this.value/100);
-          processImage().then(draw());
+          processImage().then(draw);
         }
       }
-    }
+    },
+    {
+      title:'올드 66색: {0}',
+      type:'checkbox',
+      attr:[
+        ['.checked',false]
+      ],
+      eventListener:{
+        input:function(){
+          this._title.innerText=this._opt.title.format((imageProcessingOptions.legacyColor=this.checked)?'사용':'사용안함');
+          processImage().then(draw);
+        }
+      }
+    },
+    /*{
+      title:'',
+      type:'button',
+      attr:[
+        ['.value','to BBB data']
+      ],
+      eventListener:{
+        click:function(){
+          processImage().then(()=>
+          {
+            let res=toBBBData(imageStatus.scaledImage.width,imageStatus.scaledImage.height,getColorArray());
+            console.log(res);
+          });
+        }
+      }
+    }*/
   ]
 };
+
+function toBBBData(w,h,indexs)
+{
+  const DV=19532n;
+  const M='0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+  const ML=BigInt(M.length);
+  const L=5;
+  const P=12;
+  indexs=indexs.slice(0).concat(Array((L-indexs.length%L)%L).fill(0));
+  let s='';
+  for(let i=0;i<indexs.length;i+=L)
+  {
+    let n=0n;
+    for(let j=L-1;j>=0;j--)
+    {
+      n=n*DV+BigInt(indexs[i+j]);
+    }
+    for(let j=P-1;j>=0;j--)
+    {
+      s+=M[n%ML];
+      n/=ML;
+    }
+  }
+  return w+','+h+','+s;
+}
 
 let mouseStatus=null;
 window.onmousedown=e=>
@@ -207,7 +263,8 @@ window.onload=()=>
     input._opt=ctr;
     ctr.attr.forEach(attr=>
     {
-      input.setAttribute(attr[0],attr[1]);
+      if(attr[0][0]=='.')input[attr[0].slice(1)]=attr[1];
+      else input.setAttribute(attr[0],attr[1]);
     });
     for(let e in ctr.eventListener)
     {
@@ -278,15 +335,29 @@ async function scaleImage()
   await imageResize(img,0,0,img.width,img.height);
 }
 
-async function processImage()
+function getColorArray()
 {
-  if(imageStatus.scaledImage===null)return;
+  imageProcessingOptions.getColorIndex=true;
+  let d=getDetherData();
+  imageProcessingOptions.getColorIndex=false;
+  return d;
+}
+
+function getDetherData()
+{
   let w=offcanvas.width=imageStatus.scaledImage.width;
   let h=offcanvas.height=imageStatus.scaledImage.height;
 
   offctx.drawImage(imageStatus.scaledImage,0,0);
   let imd=offctx.getImageData(0,0,w,h);
-  dether(imd.data,w,h,imageProcessingOptions).forEach((v,i)=>imd.data[i]=v);
+  return dether(imd.data,w,h,imageProcessingOptions);
+}
+
+async function processImage()
+{
+  if(imageStatus.scaledImage===null)return;
+  let imd=new ImageData(imageStatus.scaledImage.width,imageStatus.scaledImage.height);
+  getDetherData().forEach((v,i)=>imd.data[i]=v);
   offctx.putImageData(imd,0,0);
 
   imageStatus.processedImage=await createImageBitmap(offcanvas);
