@@ -44,11 +44,11 @@ let imageStatus=
   },
   crop:
   {
-    isCrop:false,
-    x:0,y:0,w:0,h:0
+    x:0,y:0,w:null,h:null
   },
   scaledImage:null,
-  processedImage:null
+  processedImage:null,
+  originalImage:null
 };
 
 const CANVAS_STATUS=
@@ -140,6 +140,7 @@ const options=
     },
     {
       title:'올드 66색: {0}',
+      titleIsLabel:true,
       type:'checkbox',
       attr:[
         ['.checked',false]
@@ -148,6 +149,68 @@ const options=
         input:function(){
           this._title.innerText=this._opt.title.format((imageProcessingOptions.legacyColor=this.checked)?'사용':'사용안함');
           processImage().then(draw);
+        }
+      }
+    },
+    {
+      type:'button',
+      attr:[
+        ['.value','사진 자르기']
+      ],
+      eventListener:{
+        click:function(){
+          if(canvasStatus==CANVAS_STATUS.VIEW)
+          {
+            changeCanvasStatus(CANVAS_STATUS.CROP);
+            this.value='완료';
+            draw();
+          }
+          else if(canvasStatus==CANVAS_STATUS.CROP)
+          {
+            changeCanvasStatus(CANVAS_STATUS.VIEW);
+            this.value='사진 자르기';
+            scaleImage().then(()=>processImage().then(draw));
+          }
+        }
+      }
+    },
+    {
+      tag:'hr',
+      attr:[
+        ['name','option--crop']
+      ],
+      eventListener:{}
+    },
+    {
+      tag:'h3',
+      attr:[
+        ['.innerText','사진 자르기 옵션'],
+        ['name','option--crop']
+      ],
+      eventListener:{}
+    },
+    {
+      tag:'p',
+      attr:[
+        ['name','option--crop'],
+        ['id','option--crop--image--size']
+      ],
+      eventListener:{}
+    },
+    {
+      title:'',
+      type:'button',
+      attr:[
+        ['.value','영역 초기화'],
+        ['name','option--crop']
+      ],
+      eventListener:{
+        click:function(){
+          imageStatus.crop.x=0;
+          imageStatus.crop.y=0;
+          imageStatus.crop.w=imageStatus.originalImage.width;
+          imageStatus.crop.h=imageStatus.originalImage.height;
+          draw();
         }
       }
     },
@@ -195,28 +258,183 @@ function toBBBData(w,h,indexs)
   return w+','+h+','+s;
 }
 
-let mouseStatus=null;
+function changeCanvasStatus(status)
+{
+  switch(status)
+  {
+    case CANVAS_STATUS.NONE:
+    {
+      
+    }
+    break;
+    case CANVAS_STATUS.VIEW:
+    {
+      document.getElementsByName('option--crop').forEach(e=>e.style.display='none');
+    }
+    break;
+    case CANVAS_STATUS.CROP:
+    {
+      document.getElementsByName('option--crop').forEach(e=>e.style.display='block');
+    }
+    break;
+  }
+  canvasStatus=status;
+}
+
+function getCanvasZoom()
+{
+  let org1px=imageStatus.processedImage.width/imageStatus.originalImage.width;
+  return imageStatus.view.zoom*org1px;
+}
+function getCanvasMousePos()
+{
+  let zoom=getCanvasZoom();
+  let cx=(mouseStatus.x-canvas.width/2-imageStatus.view.x)/zoom+imageStatus.originalImage.width/2;
+  let cy=(mouseStatus.y-canvas.height/2-imageStatus.view.y)/zoom+imageStatus.originalImage.height/2;
+  return[cx,cy];
+}
+
+function getCanvasEdgePos()
+{
+  let zoom=getCanvasZoom();
+  return[
+    (-canvas.width/2-imageStatus.view.x)/zoom+imageStatus.originalImage.width/2,
+    (-canvas.height/2-imageStatus.view.y)/zoom+imageStatus.originalImage.height/2,
+    (canvas.width/2-imageStatus.view.x)/zoom+imageStatus.originalImage.width/2,
+    (canvas.height/2-imageStatus.view.y)/zoom+imageStatus.originalImage.height/2
+  ];
+}
+
+function getCropRectPosList()
+{
+  return[
+    [imageStatus.crop.x,imageStatus.crop.y],
+    [imageStatus.crop.x+imageStatus.crop.w,imageStatus.crop.y],
+    [imageStatus.crop.x+imageStatus.crop.w,imageStatus.crop.y+imageStatus.crop.h],
+    [imageStatus.crop.x,imageStatus.crop.y+imageStatus.crop.h]
+  ]
+}
+function getCropRectValueList()
+{
+  return[
+    [imageStatus.crop.x,imageStatus.crop.y],
+    [imageStatus.crop.w,imageStatus.crop.y],
+    [imageStatus.crop.w,imageStatus.crop.h],
+    [imageStatus.crop.x,imageStatus.crop.h]
+  ]
+}
+
+function getNearCropRectPosIndex()
+{
+  let cp=getCanvasMousePos();
+  let list=getCropRectPosList();
+  let nearCropRect=list.slice(0).sort((a,b)=>getPowDistance(a,cp)-getPowDistance(b,cp))[0];
+  return list.indexOf(nearCropRect);
+}
+
+function setCropRectPos(index,p)
+{
+  imageStatus.crop.w+=[1,2].includes(index)?p[0]-imageStatus.crop.w:imageStatus.crop.x-p[0];
+  imageStatus.crop.h+=[2,3].includes(index)?p[1]-imageStatus.crop.h:imageStatus.crop.y-p[1];
+
+  imageStatus.crop.x+=[1,2].includes(index)?0:p[0]-imageStatus.crop.x;
+  imageStatus.crop.y+=[2,3].includes(index)?0:p[1]-imageStatus.crop.y;
+}
+
+function getPowDistance(p1,p2)
+{
+  return (p1[0]-p2[0])**2+(p1[1]-p2[1])**2;
+}
+
+function updateImageCrop()
+{
+  let cp=getCanvasMousePos();
+  if(mouseStatus.selectedCropRect.index==-1)
+  {
+    imageStatus.crop.x=cp[0]-mouseStatus.selectedCropRect.dx;
+    imageStatus.crop.y=cp[1]-mouseStatus.selectedCropRect.dy;
+  }
+  else
+  {
+    setCropRectPos(
+      mouseStatus.selectedCropRect.index,
+      [
+        cp[0]-mouseStatus.selectedCropRect.dx,
+        cp[1]-mouseStatus.selectedCropRect.dy
+      ]
+    );
+  }
+
+  let w=imageStatus.crop.w,h=imageStatus.crop.h,cw,ch;
+  if(h*90/w>=30)
+  {
+    ch=30;
+    cw=Math.ceil(w*30/h);
+  }
+  else if(w*30/h>90)
+  {
+    cw=90;
+    ch=Math.ceil(h*90/w);
+  }
+  document.getElementById('option--crop--image--size').innerText=`크기: ${cw} x ${ch}`;
+}
+
+const CROP_CURSOR_SCALE=0.02;
+let mouseStatus=
+{
+  selectedCropRect:null
+};
 window.onmousedown=e=>
 {
   if(e.srcElement!=canvas)return;
-  mouseStatus=
+  mouseStatus.x=e.clientX;
+  mouseStatus.y=e.clientY;
+  mouseStatus.isPress=true;
+  if(canvasStatus==CANVAS_STATUS.CROP)
   {
-    x:e.clientX,
-    y:e.clientY
-  };
+    let cp=getCanvasMousePos(),idx=getNearCropRectPosIndex(),crpl=getCropRectPosList(),pos=crpl[idx],value=getCropRectValueList()[idx];
+    if(getPowDistance(cp,pos)>(canvas.width/getCanvasZoom()*CROP_CURSOR_SCALE)**2)
+    {
+      if(cp[0]>=crpl[0][0]&&cp[1]>=crpl[0][1]&&cp[0]<=crpl[2][0]&&cp[1]<=crpl[2][1])
+      {
+        mouseStatus.selectedCropRect=
+        {
+          index:-1,
+          dx:cp[0]-crpl[0][0],
+          dy:cp[1]-crpl[0][1]
+        };
+      }
+    }
+    else
+    {
+      mouseStatus.selectedCropRect=
+      {
+        index:idx,
+        dx:cp[0]-value[0],
+        dy:cp[1]-value[1]
+      };
+    }
+  }
 };
 window.onmousemove=e=>
 {
-  if(mouseStatus===null)return;
-  let dx=e.clientX-mouseStatus.x;
-  let dy=e.clientY-mouseStatus.y;
-  mouseStatus=
+  if(e.srcElement!=canvas)return;
+  if(mouseStatus.isPress==true&&mouseStatus.selectedCropRect===null)
   {
-    x:e.clientX,
-    y:e.clientY
-  };
-  imageStatus.view.x+=dx;
-  imageStatus.view.y+=dy;
+    let dx=e.clientX-mouseStatus.x;
+    let dy=e.clientY-mouseStatus.y;
+    imageStatus.view.x+=dx;
+    imageStatus.view.y+=dy;
+  }
+  mouseStatus.x=e.clientX;
+  mouseStatus.y=e.clientY;
+  if(canvasStatus==CANVAS_STATUS.CROP)
+  {
+    if(mouseStatus.selectedCropRect!==null)
+    {
+      updateImageCrop();
+    }
+  }
   draw();
 };
 window.onmousewheel=e=>
@@ -229,7 +447,19 @@ window.onmousewheel=e=>
 };
 window.onmouseup=e=>
 {
-  mouseStatus=null;
+  if(e.srcElement!=canvas)return;
+  mouseStatus.x=e.clientX;
+  mouseStatus.y=e.clientY;
+  mouseStatus.isPress=false;
+  if(canvasStatus==CANVAS_STATUS.CROP)
+  {
+    if(mouseStatus.selectedCropRect!==null)
+    {
+      updateImageCrop();
+      mouseStatus.selectedCropRect=null;
+    }
+  }
+  draw();
 };
 window.onselectstart=()=>false;
 window.ontouchstart=e=>
@@ -256,8 +486,8 @@ window.onload=()=>
 
   options.controller.forEach(ctr=>
   {
-    let title=document.createElement('p');
-    let input=document.createElement('input');
+    let title=document.createElement(ctr.titleIsLabel==true?'span':'p');
+    let input=document.createElement(ctr.tag??'input');
     input.type=ctr.type;
     input._title=title;
     input._opt=ctr;
@@ -323,8 +553,11 @@ function setCanvasSize(x,y)
 
 async function imageOnLoad()
 {
-  canvasStatus=CANVAS_STATUS.VIEW;
+  changeCanvasStatus(CANVAS_STATUS.VIEW);
   document.getElementsByClassName('first-screen')[0].style.display='none';
+  imageStatus.originalImage=img;
+  imageStatus.crop.w=imageStatus.originalImage.width;
+  imageStatus.crop.h=imageStatus.originalImage.height;
   await scaleImage();
   await processImage();
   draw();
@@ -332,7 +565,10 @@ async function imageOnLoad()
 
 async function scaleImage()
 {
-  await imageResize(img,0,0,img.width,img.height);
+  let offcanvas=new OffscreenCanvas(imageStatus.crop.w,imageStatus.crop.h);
+  let offctx=offcanvas.getContext('2d');
+  offctx.drawImage(img,-imageStatus.crop.x,-imageStatus.crop.y);
+  await imageResize(offcanvas,0,0,offcanvas.width,offcanvas.height);
 }
 
 function getColorArray()
@@ -450,6 +686,11 @@ function realDraw()
       ctx.translate(canvas.width/2,canvas.height/2);
       ctx.translate(imageStatus.view.x,imageStatus.view.y);
       ctx.scale(imageStatus.view.zoom,imageStatus.view.zoom);
+
+      let org1px=imageStatus.processedImage.width/imageStatus.originalImage.width;
+      
+      ctx.translate(org1px*imageStatus.crop.x,org1px*imageStatus.crop.y);
+
       ctx.translate(-imageStatus.processedImage.width/2,-imageStatus.processedImage.height/2);
 
       ctx.drawImage(imageStatus.processedImage,0,0);
@@ -459,7 +700,50 @@ function realDraw()
     break;
     case CANVAS_STATUS.CROP:
     {
+      let org1px=imageStatus.processedImage.width/imageStatus.originalImage.width;
+      let zoom=imageStatus.view.zoom*org1px;
 
+      drawBackground(ctx);
+
+      ctx.translate(canvas.width/2,canvas.height/2);
+      ctx.translate(imageStatus.view.x,imageStatus.view.y);
+      ctx.scale(zoom,zoom);
+      ctx.translate(-imageStatus.originalImage.width/2,-imageStatus.originalImage.height/2);
+
+      ctx.drawImage(imageStatus.originalImage,0,0);
+
+      let cep=getCanvasEdgePos(),crpl=getCropRectPosList(),crvl=getCropRectValueList();
+      ctx.beginPath();
+      ctx.moveTo(cep[0],cep[1]);
+      ctx.lineTo(cep[2],cep[1]);
+      ctx.lineTo(cep[2],cep[3]);
+      ctx.lineTo(cep[0],cep[3]);
+
+      
+      ctx.moveTo(...crpl[0]);
+      ctx.lineTo(...crpl[3]);
+      ctx.lineTo(...crpl[2]);
+      ctx.lineTo(...crpl[1]);
+
+      ctx.fillStyle='#000';
+      ctx.globalAlpha=0.7;
+      ctx.fill();
+      ctx.globalAlpha=1;
+
+      ctx.strokeStyle='#bbb';
+      ctx.fillStyle='#fff';
+      ctx.lineWidth=3/zoom;
+      ctx.strokeRect(...crvl[0],...crvl[2]);
+      crpl.forEach(p=>
+      {
+        ctx.beginPath();
+        ctx.arc(...p,canvas.width*CROP_CURSOR_SCALE/zoom/1.5,0,Math.PI*2);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      })
+
+      ctx.setTransform(1,0,0,1,0,0);
     }
     break;
   }
