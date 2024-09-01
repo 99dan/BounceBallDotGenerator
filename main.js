@@ -14,6 +14,8 @@ maxColor=255,
 gammaColor=0,
 gainColor=1;
 
+const MAX_WIDTH=90,MAX_HEIGHT=90;
+
 const offcanvas=new OffscreenCanvas(0,0);
 const offctx=offcanvas.getContext('2d',{willReadFrequently :true});
 offctx.imageSmoothingQuality='high';
@@ -163,6 +165,7 @@ const options=
           {
             changeCanvasStatus(CANVAS_STATUS.CROP);
             this.value='완료';
+            updateImageCrop();
             draw();
           }
           else if(canvasStatus==CANVAS_STATUS.CROP)
@@ -213,8 +216,8 @@ const options=
           draw();
         }
       }
-    },
-    /*{
+    },/*
+    {
       title:'',
       type:'button',
       attr:[
@@ -348,33 +351,36 @@ function getPowDistance(p1,p2)
 
 function updateImageCrop()
 {
-  let cp=getCanvasMousePos();
-  if(mouseStatus.selectedCropRect.index==-1)
+  if(mouseStatus.selectedCropRect!==null)
   {
-    imageStatus.crop.x=cp[0]-mouseStatus.selectedCropRect.dx;
-    imageStatus.crop.y=cp[1]-mouseStatus.selectedCropRect.dy;
-  }
-  else
-  {
-    setCropRectPos(
-      mouseStatus.selectedCropRect.index,
-      [
-        cp[0]-mouseStatus.selectedCropRect.dx,
-        cp[1]-mouseStatus.selectedCropRect.dy
-      ]
-    );
+    let cp=getCanvasMousePos();
+    if(mouseStatus.selectedCropRect.index==-1)
+    {
+      imageStatus.crop.x=cp[0]-mouseStatus.selectedCropRect.dx;
+      imageStatus.crop.y=cp[1]-mouseStatus.selectedCropRect.dy;
+    }
+    else
+    {
+      setCropRectPos(
+        mouseStatus.selectedCropRect.index,
+        [
+          cp[0]-mouseStatus.selectedCropRect.dx,
+          cp[1]-mouseStatus.selectedCropRect.dy
+        ]
+      );
+    }
   }
 
   let w=imageStatus.crop.w,h=imageStatus.crop.h,cw,ch;
-  if(h*90/w>=30)
+  if(h*MAX_WIDTH/w>=MAX_HEIGHT)
   {
-    ch=30;
-    cw=Math.ceil(w*30/h);
+    ch=MAX_HEIGHT;
+    cw=Math.ceil(w*MAX_HEIGHT/h);
   }
-  else if(w*30/h>90)
+  else if(w*MAX_HEIGHT/h>MAX_WIDTH)
   {
-    cw=90;
-    ch=Math.ceil(h*90/w);
+    cw=MAX_WIDTH;
+    ch=Math.ceil(h*MAX_WIDTH/w);
   }
   document.getElementById('option--crop--image--size').innerText=`크기: ${cw} x ${ch}`;
 }
@@ -618,16 +624,16 @@ async function imageResize(img,x,y,w,h,stretch=false,mw=0,mh=0)
   }
   else
   {
-    if(h*90/w>=30)
+    if(h*MAX_WIDTH/w>=MAX_HEIGHT)
     {
-      ch=30;
-      cw=Math.ceil(w*30/h);
+      ch=MAX_HEIGHT;
+      cw=Math.ceil(w*MAX_HEIGHT/h);
       fixAxis=0;
     }
-    else if(w*30/h>90)
+    else if(w*MAX_HEIGHT/h>MAX_WIDTH)
     {
-      cw=90;
-      ch=Math.ceil(h*90/w);
+      cw=MAX_WIDTH;
+      ch=Math.ceil(h*MAX_WIDTH/w);
       fixAxis=1;
     }
     else
@@ -645,9 +651,9 @@ async function imageResize(img,x,y,w,h,stretch=false,mw=0,mh=0)
   else
   {
     if(fixAxis==0)
-      offctx.drawImage(img,x,y,w,h,0,0,cw*30/ch,ch);
+      offctx.drawImage(img,x,y,w,h,0,0,cw*MAX_HEIGHT/ch,ch);
     if(fixAxis==1)
-      offctx.drawImage(img,x,y,w,h,0,0,cw,ch*90/cw);
+      offctx.drawImage(img,x,y,w,h,0,0,cw,ch*MAX_WIDTH/cw);
   }
   imageStatus.scaledImage=await createImageBitmap(offcanvas);
   offcanvas.width=0;
