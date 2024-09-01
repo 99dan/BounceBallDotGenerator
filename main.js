@@ -390,7 +390,171 @@ let mouseStatus=
 {
   selectedCropRect:null
 };
-window.onmousedown=e=>
+
+function isInCanvas(x,y)
+{
+    let b=canvas.getBoundingClientRect();
+    return b.left<=x&&x<=b.right&&b.top<=y&&y<=b.bottom;
+}
+
+function getDis(a1,a2)
+{
+    return ((a1[0]-a2[0])**2+(a1[1]-a2[1])**2)**.5;
+}
+
+let pointers={},lastX=0,lastY=0,zoomPointersIds=null,lastZoomPos=null;
+let longTouchTimeout=null,longTouchId,longTouchPos,isLongTouch=false;
+window.onpointerdown=function(e)
+{
+    if(imageStatus.originalImage===null)return;
+    let x=e.clientX,y=e.clientY;
+    if(!isInCanvas(x,y))return;
+
+    if(e.isPrimary)
+    {
+        lastX=e.clientX;
+        lastY=e.clientY;
+        windowOnmousedown(e)
+    }
+    
+    pointers[e.pointerId]=e;
+
+    let ids=Object.keys(pointers);
+    if(ids.length>=2)
+    {
+        clearTimeout(longTouchTimeout);
+        zoomPointersIds=ids.slice(0,2);
+    }
+    else
+    {
+        longTouchId=e.pointerId;
+        longTouchPos=[e.clientX,e.clientY];
+        longTouchTimeout=setTimeout(()=>
+        {
+            isLongTouch=true;
+            draw();
+        },500);
+
+        lastZoomPos=zoomPointersIds=null
+    }
+};
+window.onpointermove=function(e)
+{
+    if(imageStatus.originalImage===null)return;
+    
+    if(e.isPrimary)
+    {
+        lastX=e.clientX;
+        lastY=e.clientY;
+    }
+    if(e.pressure<=0)return;
+    
+    let pe=pointers[e.pointerId];
+    if(pe===undefined)return;
+    pointers[e.pointerId]=e;
+
+    let ids=Object.keys(pointers);if(ids.length>=2)zoomPointersIds=ids.slice(0,2);else lastZoomPos=zoomPointersIds=null;
+
+    if(isLongTouch==false)
+    {
+        if(zoomPointersIds!==null)
+        {
+            let p1=pointers[zoomPointersIds[0]],p2=pointers[zoomPointersIds[1]];
+            let p1x=p1.clientX,p1y=p1.clientY,p2x=p2.clientX,p2y=p2.clientY;
+
+            if(lastZoomPos!==null)
+            {
+                let [[pp1x,pp1y],[pp2x,pp2y]]=lastZoomPos;
+
+                let cx=(p1x+p2x)/2,cy=(p1y+p2y)/2;
+                let pcx=(pp1x+pp2x)/2,pcy=(pp1y+pp2y)/2;
+
+                let zp=getDis([p1x,p1y],[p2x,p2y])/getDis([pp1x,pp1y],[pp2x,pp2y]);
+
+                let newZoom=imageStatus.view.zoom*zp;
+
+                let cmx=(cx+imageStatus.view.x)/imageStatus.view.zoom;
+                let cmy=(cy+imageStatus.view.y)/imageStatus.view.zoom;
+
+                let ncx=(cmx*newZoom)-cx;
+                let ncy=(cmy*newZoom)-cy;
+
+                imageStatus.view.x=ncx;
+                imageStatus.view.y=ncy;
+
+                imageStatus.view.zoom=newZoom;
+
+
+                imageStatus.view.x-=cx-pcx;
+                imageStatus.view.y-=cy-pcy;
+            }
+            lastZoomPos=[[p1x,p1y],[p2x,p2y]];
+        }
+        else
+        {/*
+            imageStatus.view.x+=e.clientX-pe.clientX;
+            imageStatus.view.y+=e.clientY-pe.clientY;*/
+            windowOnmousemove(e)
+        }
+    }
+    else
+    {
+        lastX=e.clientX;
+        lastY=e.clientY;
+    }
+
+    if(longTouchId==e.pointerId&&getDis([e.clientX,e.clientY],longTouchPos)>Math.min(canvas.width,canvas.height)*0.05)
+    {
+        clearTimeout(longTouchTimeout);
+    }
+    
+    draw();
+};
+window.onlostpointercapture=window.onpointerup=function(e)
+{
+    if(imageStatus.originalImage===null)return;
+    
+    if(e.isPrimary)
+    {
+        lastX=e.clientX;
+        lastY=e.clientY;
+    }
+    delete pointers[e.pointerId];
+
+    let ids=Object.keys(pointers);
+    if(ids.length>=2)zoomPointersIds=ids.slice(0,2);else {lastZoomPos=zoomPointersIds=null
+      windowOnmouseup(e)
+    };
+
+    if(isLongTouch)isLongTouch=false;
+
+    if(longTouchId==e.pointerId)clearTimeout(longTouchTimeout);
+};
+window.onwheel=function(e)
+{
+    let x=e.clientX,y=e.clientY;
+    if(!isInCanvas(x,y))return;
+    x=canvas.width/2-x;
+    y=canvas.height/2-y;
+
+    let dir=-Math.sign(e.deltaY);
+    let newZoom=imageStatus.view.zoom*1.5**dir;
+
+    let cx=(x+imageStatus.view.x)/imageStatus.view.zoom;
+    let cy=(y+imageStatus.view.y)/imageStatus.view.zoom;
+
+    let ncx=(cx*newZoom)-x;
+    let ncy=(cy*newZoom)-y;
+
+    imageStatus.view.x=ncx;
+    imageStatus.view.y=ncy;
+
+    imageStatus.view.zoom=newZoom;
+
+    draw();
+}
+
+function windowOnmousedown(e)
 {
   if(e.srcElement!=canvas)return;
   mouseStatus.x=e.clientX;
@@ -422,7 +586,7 @@ window.onmousedown=e=>
     }
   }
 };
-window.onmousemove=e=>
+function windowOnmousemove(e)
 {
   if(e.srcElement!=canvas)return;
   if(mouseStatus.isPress==true&&mouseStatus.selectedCropRect===null)
@@ -443,7 +607,7 @@ window.onmousemove=e=>
   }
   draw();
 };
-window.onmousewheel=e=>
+function windowOnmousewheel(e)
 {
   if(mouseStatus!==null||e.srcElement==canvas)
   {
@@ -451,7 +615,7 @@ window.onmousewheel=e=>
     draw();
   }
 };
-window.onmouseup=e=>
+function windowOnmouseup(e)
 {
   if(e.srcElement!=canvas)return;
   mouseStatus.x=e.clientX;
