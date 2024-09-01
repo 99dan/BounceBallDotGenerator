@@ -460,7 +460,10 @@ window.onpointermove=function(e)
         if(zoomPointersIds!==null)
         {
             let p1=pointers[zoomPointersIds[0]],p2=pointers[zoomPointersIds[1]];
-            let p1x=p1.clientX,p1y=p1.clientY,p2x=p2.clientX,p2y=p2.clientY;
+            let p1x=canvas.width/2-p1.clientX,
+                p1y=canvas.height/2-p1.clientY,
+                p2x=canvas.width/2-p2.clientX,
+                p2y=canvas.height/2-p2.clientY;
 
             if(lastZoomPos!==null)
             {
